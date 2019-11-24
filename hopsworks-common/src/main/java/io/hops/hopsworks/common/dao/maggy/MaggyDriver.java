@@ -56,6 +56,9 @@ import javax.xml.bind.annotation.XmlRootElement;
     @NamedQuery(name = "MaggyDriver.findBySecret",
       query = "SELECT m FROM MaggyDriver m WHERE m.secret = :secret")
   ,
+    @NamedQuery(name = "MaggyDriver.findByWorkers",
+            query = "SELECT m FROM MaggyDriver m WHERE m.workers = :workers")
+  ,
     @NamedQuery(name = "MaggyDriver.findByCreated",
       query = "SELECT m FROM MaggyDriver m WHERE m.created = :created")})
 public class MaggyDriver implements Serializable {
@@ -88,6 +91,10 @@ public class MaggyDriver implements Serializable {
       max = 128)
   @Column(name = "secret")
   private String secret;
+  @Basic(optional = false)
+  @NotNull
+  @Column(name = "workers")
+  private int workers;
   @Column(name = "created")
   @Temporal(TemporalType.TIMESTAMP)
   private Date created;
@@ -99,12 +106,13 @@ public class MaggyDriver implements Serializable {
     this.id = id;
   }
 
-  public MaggyDriver(Integer id, String appId, String hostIp, int port, String secret) {
+  public MaggyDriver(Integer id, String appId, String hostIp, int port, String secret, int workers) {
     this.id = id;
     this.appId = appId;
     this.hostIp = hostIp;
     this.port = port;
     this.secret = secret;
+    this.workers = workers;
   }
 
   public Integer getId() {
@@ -154,6 +162,10 @@ public class MaggyDriver implements Serializable {
   public void setCreated(Date created) {
     this.created = created;
   }
+
+  public int getWorkers() { return workers; }
+
+  public void setWorkers(int workers) { this.workers = workers; }
 
   @Override
   public int hashCode() {
