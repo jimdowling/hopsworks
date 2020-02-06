@@ -49,12 +49,21 @@ module SessionHelper
     if response.code != 200
       reset_and_create_session
     end
+    pp "session:#{@user[:email]}" if defined?(@debugOpt) && @debugOpt == true
   end
   
   def with_admin_session
-    @user = create_user_without_role({})
-    create_admin_role(@user)
-    create_session(@user.email, "Pass123")
+    user = create_user_without_role({})
+    create_admin_role(user)
+    create_session(user.email, "Pass123")
+    @user = user
+  end
+
+  def with_admin_session_return_user
+    user = create_user_without_role({})
+    create_admin_role(user)
+    create_session(user.email, "Pass123")
+    user
   end
 
   def with_agent_session
@@ -65,28 +74,6 @@ module SessionHelper
     create_role_type("CLUSTER_AGENT")
     create_cluster_agent_role(User.find_by(email: "agent@hops.io"))
     create_session("agent@hops.io", "admin")
-  end
-
-  def reset_and_create_session()
-    reset_session
-    user = create_user
-    post "#{ENV['HOPSWORKS_API']}/auth/login", URI.encode_www_form({ email: user.email, password: "Pass123"}), { content_type: 'application/x-www-form-urlencoded'}
-    expect_json(sessionID: ->(value){ expect(value).not_to be_empty})
-    expect(response.code).to eq(200)
-    if !headers["set_cookie"][1].nil?
-      cookie = headers["set_cookie"][1].split(';')[0].split('=')
-      @cookies = {"SESSIONID"=> json_body[:sessionID], cookie[0] => cookie[1]}
-    else
-      @cookies = {"SESSIONID"=> json_body[:sessionID]}
-    end
-    if !headers["authorization"].nil?
-      @token = headers["authorization"]
-    end
-    @user = user
-    Airborne.configure do |config|
-      config.headers = {:cookies => @cookies, content_type: 'application/json' }
-      config.headers["Authorization"] = @token
-    end
   end
 
   def try_login(user, password)
@@ -102,7 +89,7 @@ module SessionHelper
     user[:repeatedPassword] = params[:password] ? params[:password] : "Pass123"
     user[:securityQuestion] = params[:security_question] ? params[:security_question] : "Name of your first pet?"
     user[:securityAnswer]   = params[:security_answer] ? params[:security_answer] : "example_answer"
-    user[:ToS]              = params[:tos] ? params[:tos] :  true
+    user[:tos]              = params[:tos] ? params[:tos] :  true
     user[:authType]         = params[:auth_type] ? params[:auth_type] : "Mobile"
     user[:twoFactor]        = params[:twoFactor] ? params[:twoFactor] : 0
     user[:testUser]         = true
@@ -137,24 +124,44 @@ module SessionHelper
     end
   end
 
-  def create_session(email, password)
+  def reset_and_create_session()
     reset_session
-    post "#{ENV['HOPSWORKS_API']}/auth/login", URI.encode_www_form({ email: email, password: password}), { content_type: 'application/x-www-form-urlencoded'}
+    user = create_user
+    create_session(user.email, "Pass123")
+    @user = user
+  end
+
+  def create_session(email, password)
+    raw_create_session(email, password)
+    expect_status(200)
+    expect_json(sessionID: ->(value){ expect(value).not_to be_empty})
+  end
+
+  def login_user(email, password)
+    reset_session
+    response = post "#{ENV['HOPSWORKS_API']}/auth/login", URI.encode_www_form({ email: email, password: password}), {content_type: 'application/x-www-form-urlencoded'}
+    return response, headers
+  end
+
+  def raw_create_session(email, password)
+    reset_session
+    response = post "#{ENV['HOPSWORKS_API']}/auth/login", URI.encode_www_form({ email: email, password: password}), {content_type: 'application/x-www-form-urlencoded'}
     if !headers["set_cookie"].nil? && !headers["set_cookie"][1].nil?
       cookie = headers["set_cookie"][1].split(';')[0].split('=')
-      cookies = {"SESSIONID"=> json_body[:sessionID], cookie[0] => cookie[1]}
-    else 
-      cookies = {"SESSIONID"=> json_body[:sessionID]}
+      @cookies = {"SESSIONID"=> json_body[:sessionID], cookie[0] => cookie[1]}
+    else
+      @cookies = {"SESSIONID"=> json_body[:sessionID]}
     end
-    token = ''
+    @token = ''
     if !headers["authorization"].nil?
-      token = headers["authorization"]
+      @token = headers["authorization"]
     end
     Airborne.configure do |config|
-      config.headers = {:cookies => cookies, content_type: 'application/json' }
-      config.headers["Authorization"] = token
+      config.headers = {:cookies => @cookies, content_type: 'application/json' }
+      config.headers["Authorization"] = @token
     end
-    cookies
+    @cookies
+    return response
   end
   
   def get_user_roles(user)

@@ -81,6 +81,7 @@ import io.hops.hopsworks.exceptions.ProjectException;
 import io.hops.hopsworks.jwt.annotation.JWTRequired;
 import io.hops.hopsworks.restutils.RESTCodes;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.security.AccessControlException;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
@@ -186,7 +187,7 @@ public class UploadService {
     this.templateId = templateId;
     this.isTemplate = isTemplate;
   }
-
+  
   public void setParams(Integer projectId, String path, DatasetType datasetType, int templateId, boolean isTemplate) {
     this.projectId = projectId;
     this.path = path;
@@ -214,7 +215,7 @@ public class UploadService {
     if (datasetPath.getRelativePath() != null) {
       // We need to validate that each component of the path, either it exists
       // or it is a valid directory name
-      String[] dsPathComponents = datasetPath.getRelativePath().toString().split(File.separator);
+      String[] dsPathComponents = datasetPath.getDatasetRelativePath().split(File.separator);
 
       // Used to compute the partition id. Start from the depth of the Ds dir
       int depth = datasetController.getDatasetPath(datasetPath.getDataset()).depth() + 1;
@@ -278,7 +279,7 @@ public class UploadService {
 
   /**
    * Configure the uploader to upload a metadata Template.
-   * All the templates are uploaded to /Projects/Uploads
+   * All the templates are uploaded to /user/metadata/uploads
    * <p/>
    * @throws DatasetException
    */
@@ -287,7 +288,7 @@ public class UploadService {
     try {
       dfso = dfs.getDfsOps();
       if (!dfso.isDir(Settings.DIR_META_TEMPLATES)) {
-        dfso.mkdir(Settings.DIR_META_TEMPLATES);
+        dfso.mkdirs(new Path(Settings.DIR_META_TEMPLATES), FsPermission.getDefault());
       }
     } catch (IOException e) {
       throw new DatasetException(RESTCodes.DatasetErrorCode.UPLOAD_DIR_CREATE_ERROR, Level.SEVERE, null, e.getMessage(),

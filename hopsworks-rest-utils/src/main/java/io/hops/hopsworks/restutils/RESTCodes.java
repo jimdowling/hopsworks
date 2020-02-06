@@ -742,7 +742,8 @@ public class RESTCodes {
         Response.Status.BAD_REQUEST),
     SECURITY_EXCEPTION(8, "A Java security error occurred.", Response.Status.INTERNAL_SERVER_ERROR),
     ENDPOINT_ANNOTATION_MISSING(9, "The requested endpoint did not have any project role annotation",
-        Response.Status.SERVICE_UNAVAILABLE);
+        Response.Status.SERVICE_UNAVAILABLE),
+    ENTERPRISE_FEATURE(10, "This feature is only availlable in the enterprise edition", Response.Status.BAD_REQUEST);
 
     private Integer code;
     private String message;
@@ -803,7 +804,7 @@ public class RESTCodes {
     CERTIFICATE_NOT_FOUND(17, "Could not find the certificate", Response.Status.BAD_REQUEST),
     CERTIFICATE_REVOKATION_USER_ERR(18, "Error revoking the certificate", Response.Status.BAD_REQUEST),
     CERTIFICATE_SIGN_USER_ERR(19, "Error signing the certificate", Response.Status.BAD_REQUEST);
-
+    
     private Integer code;
     private String message;
     private Response.StatusType respStatus;
@@ -906,7 +907,10 @@ public class RESTCodes {
     SECRET_EMPTY(48, "Secret is empty", Response.Status.NOT_FOUND),
     SECRET_EXISTS(49, "Same Secret already exists", Response.Status.CONFLICT),
     SECRET_ENCRYPTION_ERROR(50, "Error encrypting/decrypting Secret", Response.Status.INTERNAL_SERVER_ERROR),
-    ACCOUNT_NOT_ACTIVE(51, "This account is not active", Response.Status.BAD_REQUEST);
+    ACCOUNT_NOT_ACTIVE(51, "This account is not active", Response.Status.BAD_REQUEST),
+    ACCOUNT_ACTIVATION_FAILED(52, "Account activation failed", Response.Status.BAD_REQUEST),
+    ROLE_NOT_FOUND(53, "Role not found", Response.Status.BAD_REQUEST),
+    ACCOUNT_DELETION_ERROR(54, "Failed to delete account.", Response.Status.BAD_REQUEST);
 
     private Integer code;
     private String message;

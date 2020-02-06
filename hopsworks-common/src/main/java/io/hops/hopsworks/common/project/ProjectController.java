@@ -430,7 +430,18 @@ public class ProjectController {
           "project: " + projectName, ex.getMessage(), ex);
       }
       LOGGER.log(Level.FINE, "PROJECT CREATION TIME. Step 8 (logs): {0}", System.currentTimeMillis() - startTime);
-
+      
+      //Delete old project indices and kibana saved objects to avoid
+      // inconsistencies
+      try {
+        elasticController.deleteProjectIndices(project);
+        elasticController.deleteProjectSavedObjects(projectName);
+        LOGGER.log(Level.FINE, "PROJECT CREATION TIME. Step 9 (elastic cleanup): {0}",
+            System.currentTimeMillis() - startTime);
+      }catch (ElasticException ex){
+        LOGGER.log(Level.FINE, "Error while cleaning old project indices", ex);
+      }
+  
       if (environmentController.condaEnabledHosts()) {
         try {
           environmentController.createEnv(project, project.getOwner(), "3.6");//TODO: use variables for version
@@ -1595,7 +1606,11 @@ public class ProjectController {
         // try and close all the jupyter jobs
         removeJupyter(project);
 
-        removeAnacondaEnv(project);
+        try {
+          removeAnacondaEnv(project);
+        }catch (ElasticException ex){
+          LOGGER.log(Level.WARNING, "Failure while removing conda enviroment ", ex);
+        }
 
         //kill jobs
         killYarnJobs(project);
@@ -1709,8 +1724,12 @@ public class ProjectController {
       //Delete Hive database - will automatically cleanup all the Hive's metadata
       hiveController.dropDatabases(project, dfso, false);
 
-      //Delete elasticsearch template for this project
-      removeElasticsearch(project);
+      try {
+        //Delete elasticsearch template for this project
+        removeElasticsearch(project);
+      }catch (ElasticException ex){
+        LOGGER.log(Level.WARNING, "Failure while removing elasticsearch indices", ex);
+      }
 
       //delete project group and users
       removeGroupAndUsers(groupsToClean, usersToClean);
@@ -1917,6 +1936,10 @@ public class ProjectController {
               throw new EJBException("Could not create certificates for user");
             }
 
+            String message = "You have been added to project " + project.getName() + " with a role "
+              + projectTeam.getTeamRole() + ".";
+            messageController.send(newMember, owner, "You have been added to a project.",
+              message, message, "");
             LOGGER.log(Level.FINE, "{0} - member added to project : {1}.",
               new Object[]{newMember.getEmail(),
                 project.getName()});
@@ -2596,8 +2619,9 @@ public class ProjectController {
       return new CertsDTO("jks", accessCredentials.getkStore(), accessCredentials.gettStore());
     } catch (Exception ex) {
       LOGGER.log(Level.SEVERE, null, ex);
-      throw new DatasetException(RESTCodes.DatasetErrorCode.DOWNLOAD_ERROR, Level.SEVERE, "projectId: " + projectId,
-          ex.getMessage(), ex);
+      throw new DatasetException(RESTCodes.DatasetErrorCode.DOWNLOAD_ERROR, Level.SEVERE, "Failed to " +
+        "download project-user certificates for project: " + project.getName() + " (projectId: " + projectId +
+        "), user: " + user.getUsername(), ex.getMessage(), ex);
     } finally {
       certificateMaterializer.removeCertificatesLocal(user.getUsername(), project.getName());
     }

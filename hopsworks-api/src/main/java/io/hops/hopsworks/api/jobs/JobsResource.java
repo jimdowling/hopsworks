@@ -85,7 +85,6 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
 @RequestScoped
 @TransactionAttribute(TransactionAttributeType.NEVER)
 public class JobsResource {
@@ -128,7 +127,7 @@ public class JobsResource {
   public Response getAll(
     @BeanParam Pagination pagination,
     @BeanParam JobsBeanParam jobsBeanParam,
-    @Context UriInfo uriInfo) {
+    @Context UriInfo uriInfo, @Context SecurityContext sc) {
     ResourceRequest resourceRequest = new ResourceRequest(ResourceRequest.Name.JOBS);
     resourceRequest.setOffset(pagination.getOffset());
     resourceRequest.setLimit(pagination.getLimit());
@@ -149,7 +148,7 @@ public class JobsResource {
   @ApiKeyRequired( acceptedScopes = {ApiScope.JOB}, allowedUserRoles = {"HOPS_ADMIN", "HOPS_USER"})
   public Response getJob(@PathParam("name") String name,
     @BeanParam JobsBeanParam jobsBeanParam,
-    @Context UriInfo uriInfo) throws JobException {
+    @Context UriInfo uriInfo, @Context SecurityContext sc) throws JobException {
     Jobs job = jobController.getJob(project, name);
     ResourceRequest resourceRequest = new ResourceRequest(ResourceRequest.Name.JOBS);
     resourceRequest.setExpansions(jobsBeanParam.getExpansions().getResources());
@@ -327,7 +326,8 @@ public class JobsResource {
   @Produces(MediaType.APPLICATION_JSON)
   @AllowedProjectRoles({AllowedProjectRoles.DATA_OWNER, AllowedProjectRoles.DATA_SCIENTIST})
   @JWTRequired(acceptedTokens={Audience.API}, allowedUserRoles={"HOPS_ADMIN", "HOPS_USER"})
-  public Response getJobUI(@PathParam("appId") String appId, @PathParam("isLivy") String isLivy) throws JobException {
+  public Response getJobUI(@PathParam("appId") String appId, @PathParam("isLivy") String isLivy,
+    @Context SecurityContext sc) throws JobException {
     executionController.checkAccessRight(appId, project);
     List<YarnAppUrlsDTO> urls = new ArrayList<>();
     
@@ -338,7 +338,7 @@ public class JobsResource {
         urls.add(new YarnAppUrlsDTO("spark", trackingUrl));
       }
     } catch (Exception e) {
-      LOGGER.log(Level.SEVERE, "exception while geting job ui " + e.getLocalizedMessage(), e);
+      LOGGER.log(Level.SEVERE, "Exception while getting job ui " + e.getLocalizedMessage(), e);
     }
     
     GenericEntity<List<YarnAppUrlsDTO>> listUrls = new GenericEntity<List<YarnAppUrlsDTO>>(urls) { };
@@ -367,7 +367,7 @@ public class JobsResource {
     try {
       urls.addAll(executionController.getTensorBoardUrls(user, appId, project));
     } catch (Exception e) {
-      LOGGER.log(Level.SEVERE, "Exception while getting TensorBoard endpoints" + e.getLocalizedMessage(), e);
+      LOGGER.log(Level.SEVERE, "Exception while getting TensorBoard endpoints " + e.getLocalizedMessage(), e);
     }
     
     GenericEntity<List<YarnAppUrlsDTO>> listUrls = new GenericEntity<List<YarnAppUrlsDTO>>(urls) { };
@@ -386,19 +386,17 @@ public class JobsResource {
   @Produces(MediaType.TEXT_PLAIN)
   @AllowedProjectRoles({AllowedProjectRoles.DATA_OWNER, AllowedProjectRoles.DATA_SCIENTIST})
   @JWTRequired(acceptedTokens={Audience.API}, allowedUserRoles={"HOPS_ADMIN", "HOPS_USER"})
-  public Response getYarnUI(@PathParam("appId") String appId) throws JobException {
+  public Response getYarnUI(@PathParam("appId") String appId, @Context SecurityContext sc) throws JobException {
     executionController.checkAccessRight(appId, project);
     
     try {
       String yarnUrl = "/hopsworks-api/api/project/" + project.getId() + "/jobs/"
-        + appId + "/prox/" + settings.getYarnWebUIAddress()
-        + "/cluster/app/"
-        + appId;
+        + appId + "/prox/" + settings.getYarnWebUIAddress() + "/cluster/app/" + appId;
       
       return Response.ok().entity(yarnUrl).build();
       
     } catch (Exception e) {
-      LOGGER.log(Level.SEVERE, "exception while geting job ui " + e.getLocalizedMessage(), e);
+      LOGGER.log(Level.SEVERE, "Exception while getting job ui " + e.getLocalizedMessage(), e);
     }
     return Response.ok().build();
   }
@@ -414,7 +412,7 @@ public class JobsResource {
   @Produces(MediaType.APPLICATION_JSON)
   @AllowedProjectRoles({AllowedProjectRoles.DATA_OWNER, AllowedProjectRoles.DATA_SCIENTIST})
   @JWTRequired(acceptedTokens={Audience.API}, allowedUserRoles={"HOPS_ADMIN", "HOPS_USER"})
-  public Response getAppInfo(@PathParam("appId") String appId) throws JobException {
+  public Response getAppInfo(@PathParam("appId") String appId, @Context SecurityContext sc) throws JobException {
     executionController.checkAccessRight(appId, project);
     Execution execution = executionFacade.findByAppId(appId);
     try {
@@ -509,7 +507,7 @@ public class JobsResource {
       return Response.ok().entity(appInfo).build();
     
     } catch (Exception e) {
-      LOGGER.log(Level.SEVERE, "exception while geting job ui " + e.getLocalizedMessage(), e);
+      LOGGER.log(Level.SEVERE, "Exception while getting job ui " + e.getLocalizedMessage(), e);
     }
     return Response.ok().status(Response.Status.NOT_FOUND).build();
   }

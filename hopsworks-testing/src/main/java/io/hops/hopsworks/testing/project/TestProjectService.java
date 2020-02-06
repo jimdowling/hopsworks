@@ -17,7 +17,7 @@ package io.hops.hopsworks.testing.project;
 
 import io.hops.hopsworks.api.filter.Audience;
 import io.hops.hopsworks.jwt.annotation.JWTRequired;
-import io.hops.hopsworks.testing.provenance.TestProvenanceResource;
+import io.hops.hopsworks.testing.provenance.TestProjectProvenanceResource;
 import io.swagger.annotations.Api;
 
 import javax.ejb.Stateless;
@@ -38,10 +38,10 @@ import javax.ws.rs.core.MediaType;
 @TransactionAttribute(TransactionAttributeType.NEVER)
 public class TestProjectService {
   @Inject
-  private TestProvenanceResource provenance;
+  private TestProjectProvenanceResource provenance;
 
   @Path("{projectId}/provenance")
-  public TestProvenanceResource provenance(@PathParam("projectId") Integer id) {
+  public TestProjectProvenanceResource provenance(@PathParam("projectId") Integer id) {
     this.provenance.setProjectId(id);
     return provenance;
   }

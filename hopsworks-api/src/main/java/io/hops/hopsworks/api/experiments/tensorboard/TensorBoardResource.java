@@ -67,16 +67,13 @@ public class TensorBoardResource {
 
   private Project project;
   private String experimentId;
-
-  public TensorBoardResource(){
-  }
-
+  
   public TensorBoardResource setProject(Project project, String experimentId) {
     this.project = project;
     this.experimentId = experimentId;
     return this;
   }
-
+  
   public Project getProject() {
     return project;
   }
@@ -148,7 +145,7 @@ public class TensorBoardResource {
       WebTarget target = client.target(tbUrl);
       try {
         Thread.currentThread().sleep(1500);
-        response = target.request().get();
+        response = target.request().head();
         if(response.getStatus() == Response.Status.OK.getStatusCode()) {
           currentConsecutiveOK += 1;
           if(currentConsecutiveOK == maxConsecutiveOK) {

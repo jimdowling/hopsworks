@@ -39,9 +39,13 @@
 =end
 
 describe "On #{ENV['OS']}" do
+  before :all do
+    @debugOpt = false
+  end
+
+  after(:all) {clean_all_test_projects}
   describe 'dataset' do
     before(:all) { setVar("download_allowed", "true") }
-    after(:all) { clean_projects }
     describe "#create" do
       context 'without authentication' do
         before :all do
@@ -241,6 +245,80 @@ describe "On #{ENV['OS']}" do
           get_download_token(project1, "Logs/../../../Projects/#{project[:projectname]}/Logs/README.md", "&type=DATASET")
           expect_status(400)
           expect_json(errorCode: 110011)
+          reset_session
+        end
+      end
+    end
+    describe "#upload" do
+      context 'without authentication' do
+        before :all do
+          with_valid_project
+          reset_session
+        end
+        it "should fail to upload" do
+          project = get_project
+          uploadFile(project, "Logs", "#{ENV['PROJECT_DIR']}/tools/metadata_designer/Sample.json")
+          expect_json(errorCode: 200003)
+          expect_status(401)
+        end
+      end
+      context 'with authentication but insufficient privilege' do
+        before :all do
+          with_valid_project
+        end
+        it "should fail to upload to a dataset with permission owner only if Data scientist" do
+          dsname = "dataset_#{short_random_id}"
+          ds = create_dataset_by_name(@project, dsname)
+          member = create_user
+          add_member_to_project(@project, member[:email], "Data scientist")
+          create_session(member[:email], "Pass123")
+          uploadFile(@project, dsname, "#{ENV['PROJECT_DIR']}/tools/metadata_designer/Sample.json")
+          expect_json(errorCode: 110016)
+          expect_status(400)
+          reset_session
+        end
+        it "should fail to upload to a shared dataset with permission owner only" do
+          with_valid_project
+          projectname = "project_#{short_random_id}"
+          project = create_project_by_name(projectname)
+          dsname = "dataset_#{short_random_id}"
+          ds = create_dataset_by_name(@project, dsname)
+          request_access(@project, ds, project)
+          share_dataset(@project, dsname, project[:projectname], "")
+          uploadFile(project, "#{@project[:projectname]}::#{dsname}", "#{ENV['PROJECT_DIR']}/tools/metadata_designer/Sample.json")
+          expect_json(errorCode: 110016)
+          expect_status(400)
+        end
+      end
+      context 'with authentication and sufficient privilege' do
+        before :all do
+          with_valid_project
+        end
+        it "should upload file" do
+          dsname = "dataset_#{short_random_id}"
+          ds = create_dataset_by_name(@project, dsname)
+          uploadFile(@project, dsname, "#{ENV['PROJECT_DIR']}/tools/metadata_designer/Sample.json")
+          expect_status(204)
+        end
+        it "should upload to a shared dataset with permission group writable." do
+          projectname = "project_#{short_random_id}"
+          project = create_project_by_name(projectname)
+          dsname = "dataset_#{short_random_id}"
+          ds = create_dataset_by_name(@project, dsname)
+          request_access(@project, ds, project)
+          share_dataset(@project, dsname, project[:projectname], "")
+          update_dataset_permissions(@project, dsname, "GROUP_WRITABLE_SB", "&type=DATASET")
+          uploadFile(project, "#{@project[:projectname]}::#{dsname}", "#{ENV['PROJECT_DIR']}/tools/metadata_designer/Sample.json")
+          expect_status(204)
+        end
+        it "should upload to a dataset with permission owner only if Data owner" do
+          dsname = "dataset_#{short_random_id}"
+          ds = create_dataset_by_name(@project, dsname)
+          member = create_user
+          add_member_to_project(@project, member[:email], "Data owner")
+          create_session(member[:email], "Pass123")
+          uploadFile(@project, dsname, "#{ENV['PROJECT_DIR']}/tools/metadata_designer/Sample.json")
+          expect_status(204)
           reset_session
         end
       end
@@ -489,6 +567,60 @@ describe "On #{ENV['OS']}" do
           expect_status(200)
         end
       end
+      context 'delete' do
+        before :each do
+          check_project_limit
+          with_valid_project
+        end
+        it "should delete dataset shared with other project" do
+          projectname = "project_#{short_random_id}"
+          project = create_project_by_name(projectname)
+          dsname = "dataset_#{short_random_id}"
+          ds = create_dataset_by_name(@project, dsname)
+          request_access(@project, ds, project)
+          share_dataset(@project, dsname, project[:projectname], "") # should work with no dataset type (default is dataset)
+          get_dataset_stat(project, "#{@project[:projectname]}::#{dsname}", "&type=DATASET")
+          expect_status(200)
+          delete_dataset(@project, "#{dsname}", "?type=DATASET")
+          get_dataset_stat(project, "#{@project[:projectname]}::#{dsname}", "&type=DATASET")
+          expect_status(400)
+        end
+        it "should unshare a dataset and not delete the original" do
+          projectname = "project_#{short_random_id}"
+          project = create_project_by_name(projectname)
+          dsname = "dataset_#{short_random_id}"
+          ds = create_dataset_by_name(@project, dsname)
+          request_access(@project, ds, project)
+          share_dataset(@project, dsname, project[:projectname], "") # should work with no dataset type (default is dataset)
+          get_dataset_stat(project, "#{@project[:projectname]}::#{dsname}", "&type=DATASET")
+          delete_dataset(project, "#{@project[:projectname]}::#{dsname}", "?type=DATASET")
+          get_dataset_stat(project, "#{@project[:projectname]}::#{dsname}", "&type=DATASET")
+          expect_status(400)
+          get_dataset_stat(@project, "#{dsname}", "&type=DATASET")
+          expect_status(200)
+        end
+        it "should unshare from one project" do
+          projectname = "project_#{short_random_id}"
+          project = create_project_by_name(projectname)
+          projectname1 = "project_#{short_random_id}"
+          project1 = create_project_by_name(projectname1)
+          dsname = "dataset_#{short_random_id}"
+          ds = create_dataset_by_name(@project, dsname)
+          request_access(@project, ds, project)
+          request_access(@project, ds, project1)
+          share_dataset(@project, dsname, project[:projectname], "") # should work with no dataset type (default is dataset)
+          share_dataset(@project, dsname, project1[:projectname], "")
+          get_dataset_stat(project, "#{@project[:projectname]}::#{dsname}", "&type=DATASET")
+          expect_status(200)
+          get_dataset_stat(project1, "#{@project[:projectname]}::#{dsname}", "&type=DATASET")
+          expect_status(200)
+          unshare_dataset(@project, "#{dsname}", "&type=DATASET&target_project=#{project[:projectname]}")
+          get_dataset_stat(project, "#{@project[:projectname]}::#{dsname}", "&type=DATASET")
+          expect_status(400)
+          get_dataset_stat(project1, "#{@project[:projectname]}::#{dsname}", "&type=DATASET")
+          expect_status(200)
+        end
+      end
     end
 
     describe "#permissions" do
@@ -633,11 +765,31 @@ describe "On #{ENV['OS']}" do
           create_dir(@project, ds3name, "")
           expect_status(201)
 
+          ds4name = ds1name + "/test%20Dir"
+          create_dir(@project, ds4name, "")
+          expect_status(201)
+
+          ds5name = ds4name + "/sub%20Dir"
+          create_dir(@project, ds5name, "")
+          expect_status(201)
+
           get_dataset_stat(@project, ds1name, "&type=DATASET")
           ds = json_body
           expect(ds).to be_present
 
           get_dataset_stat(@project, ds2name, "&type=DATASET")
+          ds = json_body
+          expect(ds).to be_present
+
+          get_dataset_stat(@project, ds3name, "&type=DATASET")
+          ds = json_body
+          expect(ds).to be_present
+
+          get_dataset_stat(@project, ds4name, "&type=DATASET")
+          ds = json_body
+          expect(ds).to be_present
+
+          get_dataset_stat(@project, ds5name, "&type=DATASET")
           ds = json_body
           expect(ds).to be_present
         end
@@ -663,6 +815,32 @@ describe "On #{ENV['OS']}" do
           wait_for do
             get_datasets_in_path(@project, @dataset[:inode_name], "&type=DATASET")
             ds = json_body[:items].detect { |d| d[:attributes][:name] == "testDir" }
+            !ds.nil?
+          end
+        end
+
+        it 'zip directory with spaces' do
+          zip_dataset(@project, "#{@dataset[:inode_name]}/test%20Dir/sub%20Dir", "&type=DATASET")
+          expect_status(204)
+
+          wait_for do
+            get_datasets_in_path(@project, "#{@dataset[:inode_name]}/test%20Dir", "&type=DATASET")
+            ds = json_body[:items].detect { |d| d[:attributes][:name] == "sub Dir.zip" }
+            !ds.nil?
+          end
+        end
+
+        it 'unzip directory with spaces' do
+
+          delete_dataset(@project, "#{@dataset[:inode_name]}/test%20Dir/sub%20Dir", "?type=DATASET")
+          expect_status(204)
+
+          unzip_dataset(@project, "#{@dataset[:inode_name]}/test%20Dir/sub%20Dir.zip", "&type=DATASET")
+          expect_status(204)
+
+          wait_for do
+            get_datasets_in_path(@project, "#{@dataset[:inode_name]}/test%20Dir", "&type=DATASET")
+            ds = json_body[:items].detect { |d| d[:attributes][:name] == "sub Dir" }
             !ds.nil?
           end
         end
@@ -744,7 +922,9 @@ describe "On #{ENV['OS']}" do
           expect_status(401)
         end
         it 'should fail to download a file if variable download_allowed is false' do
+          user = @user[:email]
           setVar("download_allowed", 'false')
+          create_session(user, "Pass123")
           get_download_token(@project, "Logs/README.md", "?type=DATASET")
           expect_status(403)
           #set var back to true

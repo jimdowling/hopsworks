@@ -14,8 +14,30 @@
  If not, see <https://www.gnu.org/licenses/>.
 =end
 module ProvStateHelper
+  def project_index_cleanup(session_email)
+    reset_session
+    with_admin_session
+
+    #pp "cleaning up indices"
+    tries = 0
+    loop do
+      query = "#{ENV['HOPSWORKS_TESTING']}/test/provenance/cleanup?size=100"
+      pp "#{query}" if @debugOpt == true
+      result = post "#{query}"
+      expect_status(200)
+      parsed_result = JSON.parse(result)
+      tries = tries+1
+      break if parsed_result["result"]["value"] == 0
+      break if tries == 10
+    end
+    expect(tries).to be <= 10
+    reset_session
+    create_session(session_email, "Pass123")
+  end
+
   def setup_cluster_prov(provenance_type, prov_archive_size)
-    @cookies = with_admin_session
+    reset_session
+    with_admin_session
     old_provenance_type = getVar("provenance_type")["value"]
     old_provenance_archive_size = getVar("provenance_archive_size")["value"]
 
@@ -27,7 +49,7 @@ module ProvStateHelper
     new_provenance_archive_size = getVar("provenance_archive_size")["value"]
     expect(new_provenance_archive_size).to eq prov_archive_size
 
-    @cookies = nil
+    reset_session
     return old_provenance_type, old_provenance_archive_size
   end
 
@@ -167,6 +189,7 @@ module ProvStateHelper
     until FileProv.all.count == 0 || sleep_counter1 == 5 do
       sleep(10)
       sleep_counter1 += 1
+
     end
     until AppProv.all.count == 0 || sleep_counter2 == 5 do
       sleep(10)
@@ -352,5 +375,28 @@ module ProvStateHelper
     # pp "#{target}#{param}"
     result = post "#{target}#{param}"
     expect_status(200)
+  end
+
+  def prov_with_retries(max_retries, wait_time, expected_code, &block)
+    response = nil
+    max_retries.times {
+      response = block.call
+      break if response.code == expected_code
+      sleep(wait_time)
+    }
+    expect(response.code).to eq expected_code
+    return response
+  end
+
+  def check_epipe_is_active()
+    output = execute_remotely ENV['EPIPE_HOST'], "systemctl is-active epipe"
+    expect(output.strip).to eq("active"), "epipe is down"
+  end
+
+  def wait_for_project_prov(project)
+    check_epipe_is_active
+    wait_for do
+      FileProv.where("project_name": project["inode_name"]).empty?
+    end
   end
 end
